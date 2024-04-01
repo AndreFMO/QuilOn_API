@@ -6,6 +6,8 @@ import os
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
+UPLOADS_FOLDER = 'uploads'
+
 # Função para criar a tabela de produtos no banco de dados SQLite
 def create_table():
     connection = sqlite3.connect('Banco_products')
@@ -23,23 +25,35 @@ def create_table():
     ''')
     connection.commit()
     connection.close()
+    
 
 # Rota para chamar imagem
-@app.route('/upload/<image_name>', methods=['GET'])
-def get_image(image_name):
+@app.route('/upload/<int:product_id>/<int:image_index>', methods=['GET'])
+def get_image(product_id, image_index):
     # Caminho para a pasta uploads
-    uploads_path = 'uploads'
+    product_folder = os.path.join(UPLOADS_FOLDER, str(product_id))
     
     # Verifica a extensão da imagem na pasta
     image_extensions = ['.png', '.jpg', '.jpeg', '.gif']  # Adicione mais extensões se necessário
     
     for ext in image_extensions:
-        image_path = os.path.join(uploads_path, f"{image_name}{ext}")
+        image_path = os.path.join(product_folder, f"{image_index}{ext}")
         if os.path.exists(image_path):
             return send_file(image_path, mimetype=f'image/{ext[1:]}')
     
     return "Imagem não encontrada", 404
 
+# Rota para obter o número total de imagens na pasta do produto
+@app.route('/upload/<int:product_id>/total', methods=['GET'])
+def get_total_images(product_id):
+    product_folder = os.path.join(UPLOADS_FOLDER, str(product_id))
+    if os.path.exists(product_folder):
+        images = [filename for filename in os.listdir(product_folder) if os.path.isfile(os.path.join(product_folder, filename))]
+        total_images = len(images)
+        return jsonify({'total_images': total_images})
+    else:
+        return jsonify({'total_images': 0})
+    
 
 # Rota para criar um novo produto
 @app.route('/product', methods=['POST'])
