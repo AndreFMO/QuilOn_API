@@ -1,7 +1,7 @@
 #   <img src="img/quilon.png" width="150" height="150"> API
 
  
-## 🟡 Repositório destinado a API do E-commerce QuilOn
+## 🟡 Repositório destinado a API do E-commerce QuilOn 
 
 
 Esta API tem como objetivo oferecer funcionalidades essenciais para o cadastro, visualização, exclusão e atualização de informações relacionadas a produtos. Através dessa API, os representantes quilombolas desempenham um papel fundamental no gerenciamento e na manutenção desses dados, permitindo que registrem novos produtos, visualizem informações existentes, removam produtos obsoletos e atualizem detalhes importantes.
