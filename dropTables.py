@@ -6,7 +6,7 @@ def drop_tables():
         cursor = connection.cursor()
         
         # Excluir tabela, se existir
-        cursor.execute('''DROP TABLE IF EXISTS NomeDaTabela''')
+        # cursor.execute('''DROP TABLE IF EXISTS NomeDaTabela''')
         
         connection.commit()
         print("Tabelas excluídas com sucesso.")
