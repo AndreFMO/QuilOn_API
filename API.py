@@ -35,11 +35,11 @@ def create_tables():
             nome TEXT NOT NULL,
             dataNasc TEXT NOT NULL,
             sexo TEXT NOT NULL,
-            cpf TEXT NOT NULL UNIQUE,
+            cpf TEXT NOT NULL,
             rg TEXT NOT NULL,
             celular TEXT NOT NULL,
             telefone TEXT,
-            email TEXT NOT NULL UNIQUE,
+            email TEXT NOT NULL,
             senha TEXT NOT NULL
         )
     ''')
@@ -58,6 +58,20 @@ def create_tables():
             FOREIGN KEY (idUsuario) REFERENCES user (idUsuario)
         )
     ''')
+
+    # Criação da tabela quilombo com idUsuario como chave estrangeira
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS quilombo (
+            idQuilombo INTEGER PRIMARY KEY AUTOINCREMENT,
+            idUsuario INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            certificationNumber TEXT NOT NULL,
+            latAndLng TEXT NOT NULL,
+            kmAndComplement TEXT,
+            FOREIGN KEY (idUsuario) REFERENCES user(idUsuario)
+        )
+    ''')
+
 
     # Criação da tabela favorites
     cursor.execute('''
@@ -236,8 +250,11 @@ def create_user():
         'senha': data['senha']
     })
     connection.commit()
+    
+    user_id = cursor.lastrowid  # Obtendo o ID do usuário recém-criado
     connection.close()
-    return 'Usuário criado com sucesso', 201
+    
+    return jsonify({'idUsuario': user_id}), 201
 
 # Rota para listar todos os usuários
 @app.route('/users', methods=['GET'])
@@ -471,6 +488,44 @@ def delete_product_by_user(idUsuario, product_id):
     connection.commit()
     connection.close()
     return 'Produto excluído com sucesso'
+
+# Rota para cadastrar uma nova busca
+@app.route('/search', methods=['POST'])
+def create_search():
+    data = request.get_json()
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+    cursor.execute('''
+        INSERT INTO searched (idUsuario, conteudoBuscado)
+        VALUES (:idUsuario, :conteudoBuscado)
+    ''', {
+        'idUsuario': data['idUsuario'],
+        'conteudoBuscado': data['conteudoBuscado']
+    })
+    connection.commit()
+    connection.close()
+    return 'Busca cadastrada com sucesso', 201
+
+# Rota para cadastrar um novo quilombo
+@app.route('/quilombo', methods=['POST'])
+def create_quilombo():
+    data = request.get_json()
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+    cursor.execute('''
+        INSERT INTO quilombo (idUsuario, name, certificationNumber, latAndLng, kmAndComplement)
+        VALUES (:idUsuario, :name, :certificationNumber, :latAndLng, :kmAndComplement)
+    ''', {
+        'idUsuario': data['idUsuario'],  # Adicionando o idUsuario
+        'name': data['name'],
+        'certificationNumber': data['certificationNumber'],
+        'latAndLng': data['latAndLng'],
+        'kmAndComplement': data.get('kmAndComplement')  # Complemento de km é opcional
+    })
+    connection.commit()
+    connection.close()
+    return 'Quilombo cadastrado com sucesso', 201
+
 
 
 if __name__ == '__main__':
