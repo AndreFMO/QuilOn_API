@@ -526,6 +526,26 @@ def create_quilombo():
     connection.close()
     return 'Quilombo cadastrado com sucesso', 201
 
+# Rota para login
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+
+    # Verificar se o email e a senha correspondem a um usuário no banco de dados
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+    cursor.execute('SELECT idUsuario, email, senha FROM user WHERE email = ?', (email,))
+    user = cursor.fetchone()
+    connection.close()
+
+    if user and user[2] == password:
+        # Credenciais válidas, login bem-sucedido
+        return jsonify({'idUsuario': user[0], 'email': user[1]}), 200
+    else:
+        # Credenciais inválidas, login falhou
+        return jsonify({'error': 'Credenciais inválidas'}), 401
 
 
 if __name__ == '__main__':
