@@ -2,6 +2,8 @@ from flask import Flask, send_file, request, jsonify
 from flask_cors import CORS
 import sqlite3
 import os
+import numpy as np
+from sklearn.neighbors import NearestNeighbors
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
@@ -548,6 +550,49 @@ def login():
         return jsonify({'error': 'Credenciais inválidas'}), 401
     
 
+# Rota para cadastrar várias buscas de uma vez
+@app.route('/searches', methods=['POST'])
+def create_searches():
+    data = request.get_json()
+
+    # Verificando se o formato dos dados é uma lista de buscas
+    if not isinstance(data, list):
+        return jsonify({'error': 'Os dados devem estar em formato de lista de buscas JSON'}), 400
+
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+
+    try:
+        # Iterar sobre os dados e inserir cada busca no banco de dados
+        for search in data:
+            cursor.execute('''
+                INSERT INTO searched (idUsuario, conteudoBuscado)
+                VALUES (?, ?)
+            ''', (search['idUsuario'], search['conteudoBuscado']))
+    except sqlite3.IntegrityError:
+        connection.rollback()
+        return jsonify({'error': 'Erro ao inserir as buscas'}), 500
+    else:
+        connection.commit()
+        connection.close()
+        return 'Buscas cadastradas com sucesso', 201
+
+
+# Rota para obter os detalhes de todos os quilombos
+@app.route('/quilombos', methods=['GET'])
+def get_quilombos():
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+    cursor.execute('SELECT * FROM quilombo')
+    quilombos = cursor.fetchall()
+    connection.close()
+    return jsonify({'quilombos': quilombos})
+
+
+
+
+# ------  RECOMENDAÇÃO SEM KNN ------ #
+
 # Função para recomendar produtos com base nas categorias mais pesquisadas pelo usuário
 def recommend_similar_products(user_id):
     print(f"Recommending similar products for user {user_id}")
@@ -585,32 +630,87 @@ def get_recommendations(user_id):
     recommended_products = recommend_similar_products(user_id)
     return jsonify({'recommended_products': recommended_products})
 
-# Rota para cadastrar várias buscas de uma vez
-@app.route('/searches', methods=['POST'])
-def create_searches():
-    data = request.get_json()
 
-    # Verificando se o formato dos dados é uma lista de buscas
-    if not isinstance(data, list):
-        return jsonify({'error': 'Os dados devem estar em formato de lista de buscas JSON'}), 400
 
-    connection = sqlite3.connect('Banco_QuilOn')
-    cursor = connection.cursor()
+# ------  RECOMENDAÇÃO BASEADA NO KNN ------ #
 
-    try:
-        # Iterar sobre os dados e inserir cada busca no banco de dados
-        for search in data:
-            cursor.execute('''
-                INSERT INTO searched (idUsuario, conteudoBuscado)
-                VALUES (?, ?)
-            ''', (search['idUsuario'], search['conteudoBuscado']))
-    except sqlite3.IntegrityError:
-        connection.rollback()
-        return jsonify({'error': 'Erro ao inserir as buscas'}), 500
-    else:
-        connection.commit()
-        connection.close()
-        return 'Buscas cadastradas com sucesso', 201
+# # Função para transformar categorias em uma representação numérica
+# def encode_categories(categories, all_categories):
+#     return [all_categories.index(category) for category in categories if category in all_categories]
+
+# # Função para recomendar produtos com base nas categorias mais pesquisadas pelo usuário usando KNN
+# def recommend_similar_products(user_id, k=5):
+#     print(f"Recommending similar products for user {user_id}")
+#     connection = sqlite3.connect('Banco_QuilOn')
+#     cursor = connection.cursor()
+
+#     # Consulta para recuperar as categorias mais buscadas pelo usuário
+#     cursor.execute('''
+#         SELECT conteudoBuscado, COUNT(*) as freq
+#         FROM searched
+#         WHERE idUsuario = ?
+#         GROUP BY conteudoBuscado
+#         ORDER BY freq DESC
+#     ''', (user_id,))
+#     user_categories = cursor.fetchall()
+#     user_categories = [category[0] for category in user_categories]
+
+#     if not user_categories:
+#         print("No search history found for the user.")
+#         connection.close()
+#         return []
+
+#     # Recuperar todas as categorias de produtos no banco de dados
+#     cursor.execute('SELECT DISTINCT category FROM products')
+#     all_categories = [row[0] for row in cursor.fetchall()]
+
+#     # Verificar se todas as categorias buscadas pelo usuário estão na lista de todas as categorias
+#     user_category_indices = encode_categories(user_categories, all_categories)
+
+#     if not user_category_indices:
+#         print("None of the user's searched categories match the available product categories.")
+#         connection.close()
+#         return []
+
+#     # Criar um vetor de categorias dos produtos
+#     cursor.execute('SELECT id, category FROM products')
+#     products = cursor.fetchall()
+#     product_ids = [product[0] for product in products]
+#     product_categories = [product[1] for product in products]
+#     product_category_indices = encode_categories(product_categories, all_categories)
+
+#     # Treinar o modelo KNN
+#     X = np.array(product_category_indices).reshape(-1, 1)
+#     knn = NearestNeighbors(n_neighbors=k)
+#     knn.fit(X)
+
+#     # Encontrar os k produtos mais próximos das categorias mais buscadas pelo usuário
+#     distances, indices = knn.kneighbors(np.array(user_category_indices).reshape(-1, 1))
+
+#     recommended_product_ids = set()
+#     for idx_list in indices:
+#         for idx in idx_list:
+#             recommended_product_ids.add(product_ids[idx])
+
+#     # Recuperar os detalhes dos produtos recomendados
+#     recommended_products = []
+#     for product_id in recommended_product_ids:
+#         cursor.execute('SELECT * FROM products WHERE id = ?', (product_id,))
+#         product = cursor.fetchone()
+#         if product:
+#             recommended_products.append(product)
+
+#     connection.close()
+
+#     print(f"Recommended products: {recommended_products}")
+#     return recommended_products
+
+# # Rota para recomendar produtos semelhantes ao usuário
+# @app.route('/recommendations/<int:user_id>', methods=['GET'])
+# def get_recommendations(user_id):
+#     recommended_products = recommend_similar_products(user_id)
+#     return jsonify({'recommended_products': recommended_products})
+
 
 
 
