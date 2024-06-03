@@ -546,6 +546,72 @@ def login():
     else:
         # Credenciais inválidas, login falhou
         return jsonify({'error': 'Credenciais inválidas'}), 401
+    
+
+# Função para recomendar produtos com base nas categorias mais pesquisadas pelo usuário
+def recommend_similar_products(user_id):
+    print(f"Recommending similar products for user {user_id}")
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+
+    # Consulta para recuperar as categorias mais buscadas pelo usuário
+    cursor.execute('''
+        SELECT conteudoBuscado, COUNT(*) as freq
+        FROM searched
+        WHERE idUsuario = ?
+        GROUP BY conteudoBuscado
+        ORDER BY freq DESC
+    ''', (user_id,))
+    categories = cursor.fetchall()
+
+    # Recuperar produtos relacionados às categorias mais buscadas
+    recommended_products = []
+    for category, _ in categories:
+        cursor.execute('''
+            SELECT * FROM products
+            WHERE category = ?
+        ''', (category,))
+        products = cursor.fetchall()
+        recommended_products.extend(products)
+
+    connection.close()
+
+    print(f"Recommended products: {recommended_products}")
+    return recommended_products
+
+# Rota para recomendar produtos semelhantes ao usuário
+@app.route('/recommendations/<int:user_id>', methods=['GET'])
+def get_recommendations(user_id):
+    recommended_products = recommend_similar_products(user_id)
+    return jsonify({'recommended_products': recommended_products})
+
+# Rota para cadastrar várias buscas de uma vez
+@app.route('/searches', methods=['POST'])
+def create_searches():
+    data = request.get_json()
+
+    # Verificando se o formato dos dados é uma lista de buscas
+    if not isinstance(data, list):
+        return jsonify({'error': 'Os dados devem estar em formato de lista de buscas JSON'}), 400
+
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+
+    try:
+        # Iterar sobre os dados e inserir cada busca no banco de dados
+        for search in data:
+            cursor.execute('''
+                INSERT INTO searched (idUsuario, conteudoBuscado)
+                VALUES (?, ?)
+            ''', (search['idUsuario'], search['conteudoBuscado']))
+    except sqlite3.IntegrityError:
+        connection.rollback()
+        return jsonify({'error': 'Erro ao inserir as buscas'}), 500
+    else:
+        connection.commit()
+        connection.close()
+        return 'Buscas cadastradas com sucesso', 201
+
 
 
 if __name__ == '__main__':
