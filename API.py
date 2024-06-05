@@ -99,6 +99,33 @@ def create_tables():
     connection.commit()
     connection.close()
 
+app.config['UPLOADS_FOLDER'] = UPLOADS_FOLDER
+
+# Certifique-se de que a pasta de uploads exista
+if not os.path.exists(UPLOADS_FOLDER):
+    os.makedirs(UPLOADS_FOLDER)
+
+@app.route('/upload/<int:product_id>', methods=['POST'])
+def upload_image(product_id):
+    if 'image' not in request.files:
+        return "Nenhuma imagem encontrada na solicitação", 400
+
+    image = request.files['image']
+    product_folder = os.path.join(UPLOADS_FOLDER, str(product_id))
+
+    if not os.path.exists(product_folder):
+        os.makedirs(product_folder)
+
+    # Contar o número de imagens já presentes na pasta
+    existing_images = [f for f in os.listdir(product_folder) if os.path.isfile(os.path.join(product_folder, f))]
+    image_count = len(existing_images) + 1  # Nova imagem será numerada como próximo número
+
+    # Salvar a imagem com o próximo número disponível
+    image_path = os.path.join(product_folder, f"{image_count}.png")
+    image.save(image_path)
+
+    return "Imagem carregada com sucesso", 201
+
 # Rota para chamar imagem
 @app.route('/upload/<int:product_id>/<int:image_index>', methods=['GET'])
 def get_image(product_id, image_index):
@@ -123,7 +150,6 @@ def get_total_images(product_id):
     else:
         return jsonify({'total_images': 0})
 
-# Rota para criar um novo produto
 @app.route('/product', methods=['POST'])
 def create_product():
     data = request.get_json()
@@ -139,11 +165,14 @@ def create_product():
         'production_time': data['production_time'],
         'price': data['price'],
         'stock': data['stock'],
-        'idUsuario': data['idUsuario']  # Capturando o idUsuario do JSON
+        'idUsuario': data['idUsuario']
     })
     connection.commit()
+    product_id = cursor.lastrowid
     connection.close()
-    return 'Produto criado com sucesso', 201
+    return jsonify({'id': product_id}), 201  # Retornando JSON com o ID do produto
+
+
 
 # Rota para listar todos os produtos
 @app.route('/products', methods=['GET'])
