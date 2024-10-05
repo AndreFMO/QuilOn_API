@@ -1,5 +1,6 @@
 from flask import Flask, send_file, request, jsonify
 from flask_cors import CORS
+from datetime import datetime
 import sqlite3
 import os
 import numpy as np
@@ -330,7 +331,6 @@ def update_user(idUsuario):
     connection.close()
     return jsonify({'message': 'Usuário atualizado com sucesso'}), 200
 
-
 # Rota para excluir um usuário
 @app.route('/user/<int:idUsuario>', methods=['DELETE'])
 def delete_user(idUsuario):
@@ -467,6 +467,56 @@ def get_quilombos():
     connection.close()
     return jsonify({'quilombos': quilombos})
 
+# Rota para obter os dados de um quilombo pelo ID do usuário
+@app.route('/quilombouser/<int:id_usuario>', methods=['GET'])
+def get_quilombo_by_user(id_usuario):
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+    cursor.execute('SELECT * FROM quilombo WHERE idUsuario = ?', (id_usuario,))
+    quilombo = cursor.fetchone()
+    connection.close()
+    
+    if quilombo:
+        return jsonify({'quilombo': quilombo}), 200
+    else:
+        return jsonify({'message': 'Quilombo não encontrado para o ID do usuário fornecido'}), 404
+
+# Rota para atualizar um quilombo
+@app.route('/quilombo/<int:idQuilombo>', methods=['PUT'])
+def update_quilombo(idQuilombo):
+    data = request.get_json()
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute('''
+            UPDATE quilombo
+            SET name = :name,
+                certificationNumber = :certificationNumber,
+                latAndLng = :latAndLng,
+                kmAndComplement = :kmAndComplement
+            WHERE idQuilombo = :idQuilombo
+        ''', {
+            'name': data['name'],
+            'certificationNumber': data['certificationNumber'],
+            'latAndLng': data['latAndLng'],
+            'kmAndComplement': data.get('kmAndComplement', ''),  # kmAndComplement é opcional
+            'idQuilombo': idQuilombo
+        })
+
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Quilombo não encontrado'}), 404
+
+        connection.commit()
+        return jsonify({'message': 'Dados do quilombo atualizados com sucesso'}), 200
+
+    except sqlite3.Error as e:
+        connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        connection.close()
+
 
 ### --- BUSCAS ----###
 
@@ -509,6 +559,226 @@ def create_searches():
         connection.commit()
         connection.close()
         return 'Buscas cadastradas com sucesso', 201
+
+
+### --- COMPRAS ----###
+
+# Rota para cadastrar uma nova compra
+@app.route('/purchase', methods=['POST'])
+def create_purchase():
+    data = request.get_json()
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+
+    try:
+        # Iniciar a transação
+        cursor.execute('BEGIN')
+
+        # Inserindo na tabela purchase
+        cursor.execute('''
+            INSERT INTO purchase (userId, addressId, totalValue, purchaseDate)
+            VALUES (:userId, :addressId, :totalValue, :purchaseDate)
+        ''', {
+            'userId': data['userId'],
+            'addressId': data['addressId'],
+            'totalValue': data['totalValue'],
+            'purchaseDate': data['purchaseDate'],
+        })
+        
+        purchase_id = cursor.lastrowid  # ID da compra recém-criada
+
+        # Inserindo os itens da compra e atualizando o estoque
+        for product_id, quantity in zip(data['productIds'], data['quantities']):
+            cursor.execute('''
+                INSERT INTO purchase_items (purchaseId, productId, quantity)
+                VALUES (:purchaseId, :productId, :quantity)
+            ''', {
+                'purchaseId': purchase_id,
+                'productId': product_id,
+                'quantity': quantity,
+            })
+
+            # Atualizar o estoque do produto
+            cursor.execute('''
+                UPDATE products
+                SET stock = stock - :quantity
+                WHERE id = :productId
+            ''', {
+                'quantity': quantity,
+                'productId': product_id,
+            })
+
+        # Confirmar a transação
+        connection.commit()
+        return jsonify({'id': purchase_id}), 201
+
+    except Exception as e:
+        # Reverter a transação em caso de erro
+        connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        connection.close()
+
+# Rota para listar todas as compras
+@app.route('/purchases', methods=['GET'])
+def get_purchases():
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+    cursor.execute('SELECT * FROM purchase')
+    purchases = cursor.fetchall()
+    connection.close()
+
+    # Formatar os resultados para incluir os itens da compra
+    purchase_list = []
+    for purchase in purchases:
+        cursor.execute('SELECT * FROM purchase_items WHERE purchaseId = ?', (purchase[0],))
+        items = cursor.fetchall()
+        purchase_list.append({
+            'id': purchase[0],
+            'userId': purchase[1],
+            'addressId': purchase[2],
+            'totalValue': purchase[3],
+            'purchaseDate': purchase[4],
+            'items': [{'productId': item[1], 'quantity': item[2]} for item in items]
+        })
+
+    return jsonify({'purchases': purchase_list})
+
+# Rota para obter os detalhes de uma compra específica
+@app.route('/purchase/<int:purchase_id>', methods=['GET'])
+def get_purchase(purchase_id):
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+    
+    # Obter detalhes da compra
+    cursor.execute('SELECT * FROM purchase WHERE id = ?', (purchase_id,))
+    purchase = cursor.fetchone()
+
+    if purchase:
+        cursor.execute('SELECT * FROM purchase_items WHERE purchaseId = ?', (purchase_id,))
+        items = cursor.fetchall()
+        
+        purchase_details = {
+            'id': purchase[0],
+            'userId': purchase[1],
+            'addressId': purchase[2],
+            'totalValue': purchase[3],
+            'purchaseDate': purchase[4],
+            'items': [{'productId': item[1], 'quantity': item[2]} for item in items]
+        }
+        connection.close()
+        return jsonify(purchase_details)
+    else:
+        connection.close()
+        return jsonify({'error': 'Compra não encontrada'}), 404
+
+# Rota para atualizar uma compra
+@app.route('/purchase/<int:purchase_id>', methods=['PUT'])
+def update_purchase(purchase_id):
+    data = request.get_json()
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+
+    # Atualizar informações da compra
+    cursor.execute('''
+        UPDATE purchase
+        SET userId = :userId, addressId = :addressId, totalValue = :totalValue, purchaseDate = :purchaseDate
+        WHERE id = :purchase_id
+    ''', {
+        'userId': data['userId'],
+        'addressId': data['addressId'],
+        'totalValue': data['totalValue'],
+        'purchaseDate': data['purchaseDate'],
+        'purchase_id': purchase_id
+    })
+
+    # Excluir itens antigos
+    cursor.execute('DELETE FROM purchase_items WHERE purchaseId = ?', (purchase_id,))
+
+    # Inserir novos itens da compra
+    for product_id, quantity in zip(data['productIds'], data['quantities']):
+        cursor.execute('''
+            INSERT INTO purchase_items (purchaseId, productId, quantity)
+            VALUES (:purchaseId, :productId, :quantity)
+        ''', {
+            'purchaseId': purchase_id,
+            'productId': product_id,
+            'quantity': quantity,
+        })
+
+    connection.commit()
+    connection.close()
+    return jsonify({'message': 'Compra atualizada com sucesso'}), 200
+
+# Rota para excluir uma compra
+@app.route('/purchase/<int:purchase_id>', methods=['DELETE'])
+def delete_purchase(purchase_id):
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+
+    # Excluir itens da compra
+    cursor.execute('DELETE FROM purchase_items WHERE purchaseId = ?', (purchase_id,))
+    # Excluir a compra
+    cursor.execute('DELETE FROM purchase WHERE id = ?', (purchase_id,))
+    connection.commit()
+    connection.close()
+    return jsonify({'message': 'Compra excluída com sucesso'}), 200
+
+
+### --- VENDAS ----###
+
+# Rota para obter os produtos vendidos por um usuario
+@app.route('/vendas/<int:idUsuario>', methods=['GET'])
+def get_sold_products(idUsuario):
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+
+    try:
+        # Consulta para buscar os produtos do usuário e as informações de compra
+        cursor.execute('''
+            SELECT 
+                p.id,                -- ID do produto
+                p.title,             -- Nome do produto
+                p.category,          -- Categoria do produto
+                pi.quantity,         -- Quantidade vendida
+                pur.purchaseDate,    -- Data da compra
+                (p.price * pi.quantity) AS totalSaleValue  -- Valor total da venda (preço * quantidade)
+            FROM 
+                products AS p
+            INNER JOIN 
+                purchase_items AS pi ON p.id = pi.productId
+            INNER JOIN 
+                purchase AS pur ON pi.purchaseId = pur.id
+            WHERE 
+                p.idUsuario = ?
+        ''', (idUsuario,))
+
+        # Buscar os resultados
+        sold_products = cursor.fetchall()
+
+        if not sold_products:
+            return jsonify({'message': 'Nenhum produto vendido encontrado para este usuário.'}), 404
+
+        # Organizar os resultados em uma lista de dicionários
+        result = []
+        for product in sold_products:
+            result.append({
+                'productId': product[0],         # ID do produto
+                'title': product[1],             # Nome do produto
+                'category': product[2],          # Categoria
+                'quantity': product[3],          # Quantidade vendida
+                'purchaseDate': product[4],      # Data da compra
+                'totalSaleValue': product[5]     # Valor total da venda
+            })
+
+        return jsonify(result), 200
+
+    except sqlite3.Error as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        connection.close()
 
 
 ### --- LOGIN ----###

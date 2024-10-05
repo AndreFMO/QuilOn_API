@@ -1,24 +1,24 @@
 import sqlite3
-#--- Arquivo destinado a manutenção das tabelas e realização de testes ---#
+# #--- Arquivo destinado a manutenção das tabelas e realização de testes ---#
 
-# Dropar tabelas se necessario
-def drop_tables():
-    try:
-        connection = sqlite3.connect('Banco_QuilOn')
-        cursor = connection.cursor()
+# # Dropar tabelas se necessario
+# def drop_tables():
+#     try:
+#         connection = sqlite3.connect('Banco_QuilOn')
+#         cursor = connection.cursor()
         
-        # Excluir tabela, se existir
-        # cursor.execute('''DROP TABLE IF EXISTS NomeDaTabela''')
+#         # Excluir tabela, se existir
+#         cursor.execute('''DROP TABLE IF EXISTS NomeDaTabela''')
         
-        connection.commit()
-        print("Tabelas excluídas com sucesso.")
-    except sqlite3.Error as e:
-        print(f"Erro ao excluir tabelas: {e}")
-    finally:
-        connection.close()
-drop_tables()
+#         connection.commit()
+#         print("Tabelas excluídas com sucesso.")
+#     except sqlite3.Error as e:
+#         print(f"Erro ao excluir tabelas: {e}")
+#     finally:
+#         connection.close()
+# drop_tables()
 
-# Função para criar as tabelas de produtos, usuários e endereços no banco de dados SQLite
+# Função para criar as tabelas no banco de dados SQLite
 def create_tables():
     connection = sqlite3.connect('Banco_QuilOn')
     cursor = connection.cursor()
@@ -101,6 +101,31 @@ def create_tables():
             idUsuario INTEGER NOT NULL,
             conteudoBuscado TEXT NOT NULL,
             FOREIGN KEY (idUsuario) REFERENCES user(idUsuario)
+        )
+    ''')
+
+    # Criação da tabela purchase
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS purchase (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            userId INTEGER NOT NULL,
+            addressId INTEGER NOT NULL,
+            totalValue REAL NOT NULL,
+            purchaseDate DATETIME NOT NULL,
+            FOREIGN KEY (userId) REFERENCES user(idUsuario),
+            FOREIGN KEY (addressId) REFERENCES address(idEndereco)
+        )
+    ''')
+
+    # Criação da tabela purchase_items
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS purchase_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            purchaseId INTEGER NOT NULL,
+            productId INTEGER NOT NULL,
+            quantity INTEGER NOT NULL,
+            FOREIGN KEY (purchaseId) REFERENCES purchase(id),
+            FOREIGN KEY (productId) REFERENCES product(id)  -- Certifique-se de que existe uma tabela de produtos
         )
     ''')
 
