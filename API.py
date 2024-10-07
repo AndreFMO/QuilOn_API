@@ -87,12 +87,12 @@ def create_product():
     connection.close()
     return jsonify({'id': product_id}), 201
 
-# Rota para listar todos os produtos
+# Rota para listar todos os produtos com quantidade maior que 0
 @app.route('/products', methods=['GET'])
 def get_products():
     connection = sqlite3.connect('Banco_QuilOn')
     cursor = connection.cursor()
-    cursor.execute('SELECT * FROM products')
+    cursor.execute('SELECT * FROM products WHERE stock > 0')  # Filtra produtos com quantidade maior que 0
     products = cursor.fetchall()
     connection.close()
     return jsonify({'products': products})
@@ -725,6 +725,65 @@ def delete_purchase(purchase_id):
     connection.close()
     return jsonify({'message': 'Compra excluída com sucesso'}), 200
 
+# Rota para cadastrar várias compras de uma vez
+@app.route('/purchases', methods=['POST'])
+def create_multiple_purchases():
+    data = request.get_json()
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+
+    try:
+        # Iniciar a transação
+        cursor.execute('BEGIN')
+
+        # Loop para cadastrar múltiplas compras
+        for purchase in data['purchases']:
+            # Inserindo na tabela purchase
+            cursor.execute('''
+                INSERT INTO purchase (userId, addressId, totalValue, purchaseDate)
+                VALUES (:userId, :addressId, :totalValue, :purchaseDate)
+            ''', {
+                'userId': purchase['userId'],
+                'addressId': purchase['addressId'],
+                'totalValue': purchase['totalValue'],
+                'purchaseDate': purchase['purchaseDate'],
+            })
+            
+            purchase_id = cursor.lastrowid  # ID da compra recém-criada
+
+            # Inserindo os itens da compra e atualizando o estoque
+            for product_id, quantity in zip(purchase['productIds'], purchase['quantities']):
+                cursor.execute('''
+                    INSERT INTO purchase_items (purchaseId, productId, quantity)
+                    VALUES (:purchaseId, :productId, :quantity)
+                ''', {
+                    'purchaseId': purchase_id,
+                    'productId': product_id,
+                    'quantity': quantity,
+                })
+
+                # Atualizar o estoque do produto
+                cursor.execute('''
+                    UPDATE products
+                    SET stock = stock - :quantity
+                    WHERE id = :productId
+                ''', {
+                    'quantity': quantity,
+                    'productId': product_id,
+                })
+
+        # Confirmar a transação
+        connection.commit()
+        return jsonify({'message': 'Compras cadastradas com sucesso!'}), 201
+
+    except Exception as e:
+        # Reverter a transação em caso de erro
+        connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        connection.close()
+
 
 ### --- VENDAS ----###
 
@@ -815,21 +874,21 @@ def recommend_similar_products(user_id):
     cursor = connection.cursor()
 
     # Consulta para recuperar as categorias mais buscadas pelo usuário
-    cursor.execute('''
-        SELECT conteudoBuscado, COUNT(*) as freq
-        FROM searched
-        WHERE idUsuario = ?
-        GROUP BY conteudoBuscado
-        ORDER BY freq DESC
+    cursor.execute(''' 
+        SELECT conteudoBuscado, COUNT(*) as freq 
+        FROM searched 
+        WHERE idUsuario = ? 
+        GROUP BY conteudoBuscado 
+        ORDER BY freq DESC 
     ''', (user_id,))
     categories = cursor.fetchall()
 
-    # Recuperar produtos relacionados às categorias mais buscadas
+    # Recuperar produtos relacionados às categorias mais buscadas, excluindo os com quantidade 0
     recommended_products = []
     for category, _ in categories:
-        cursor.execute('''
-            SELECT * FROM products
-            WHERE category = ?
+        cursor.execute(''' 
+            SELECT * FROM products 
+            WHERE category = ? AND stock > 0 
         ''', (category,))
         products = cursor.fetchall()
         recommended_products.extend(products)
