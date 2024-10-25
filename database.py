@@ -54,6 +54,12 @@ def create_tables():
         )
     ''')
 
+    # Adicionando a coluna representante na tabela user
+    cursor.execute('''
+        ALTER TABLE user ADD COLUMN representante INTEGER DEFAULT 0
+    ''')
+
+
     # Criação da tabela address
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS address (
@@ -126,6 +132,17 @@ def create_tables():
             quantity INTEGER NOT NULL,
             FOREIGN KEY (purchaseId) REFERENCES purchase(id),
             FOREIGN KEY (productId) REFERENCES product(id)  -- Certifique-se de que existe uma tabela de produtos
+        )
+    ''')
+
+    # Criação da tabela communityInformative
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS communityInformative (
+            idInformative INTEGER PRIMARY KEY AUTOINCREMENT,
+            idQuilombo INTEGER,
+            population INTEGER NOT NULL,
+            history TEXT NOT NULL,
+            FOREIGN KEY (idQuilombo) REFERENCES quilombo(idQuilombo)
         )
     ''')
 

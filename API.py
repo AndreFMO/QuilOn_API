@@ -10,19 +10,37 @@ app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 ### --- IMAGENS DOS PRODUTOS ----###
-UPLOADS_FOLDER = 'uploads'
-app.config['UPLOADS_FOLDER'] = UPLOADS_FOLDER
-if not os.path.exists(UPLOADS_FOLDER):
-    os.makedirs(UPLOADS_FOLDER)
+PRODUCTS_FOLDER = 'uploads/products'
+app.config['PRODUCTS_FOLDER'] = PRODUCTS_FOLDER
+if not os.path.exists(PRODUCTS_FOLDER):
+    os.makedirs(PRODUCTS_FOLDER)
+
+### --- IMAGENS DOS USUARIOS ----###
+USERS_FOLDER = 'uploads/users'
+app.config['USERS_FOLDER'] = USERS_FOLDER
+if not os.path.exists(USERS_FOLDER):
+    os.makedirs(USERS_FOLDER)
+
+### --- IMAGENS DOS QUILOMBOS ----###
+QUILOMBOS_FOLDER = 'uploads/quilombos'
+app.config['QUILOMBOS_FOLDER'] = QUILOMBOS_FOLDER
+if not os.path.exists(QUILOMBOS_FOLDER):
+    os.makedirs(QUILOMBOS_FOLDER)
+
+### --- IMAGENS DOS INFORMATIVOS ----###
+INFORMATIVE_FOLDER = 'uploads/informatives'
+app.config['INFORMATIVE_FOLDER'] = INFORMATIVE_FOLDER
+if not os.path.exists(INFORMATIVE_FOLDER):
+    os.makedirs(INFORMATIVE_FOLDER)
 
 # Rota para cadastrar imagens do produto
-@app.route('/upload/<int:product_id>', methods=['POST'])
+@app.route('/productImage/<int:product_id>', methods=['POST'])
 def upload_image(product_id):
     if 'image' not in request.files:
         return "Nenhuma imagem encontrada na solicitação", 400
 
     image = request.files['image']
-    product_folder = os.path.join(UPLOADS_FOLDER, str(product_id))
+    product_folder = os.path.join(PRODUCTS_FOLDER, str(product_id))
 
     if not os.path.exists(product_folder):
         os.makedirs(product_folder)
@@ -38,9 +56,9 @@ def upload_image(product_id):
     return "Imagem carregada com sucesso", 201
 
 # Rota para chamar imagem
-@app.route('/upload/<int:product_id>/<int:image_index>', methods=['GET'])
+@app.route('/productImage/<int:product_id>/<int:image_index>', methods=['GET'])
 def get_image(product_id, image_index):
-    product_folder = os.path.join(UPLOADS_FOLDER, str(product_id))
+    product_folder = os.path.join(PRODUCTS_FOLDER, str(product_id))
     image_extensions = ['.png', '.jpg', '.jpeg', '.gif']  # Adicione mais extensões se necessário
     
     for ext in image_extensions:
@@ -51,15 +69,76 @@ def get_image(product_id, image_index):
     return "Imagem não encontrada", 404
 
 # Rota para obter o número total de imagens na pasta do produto
-@app.route('/upload/<int:product_id>/total', methods=['GET'])
+@app.route('/productImage/<int:product_id>/total', methods=['GET'])
 def get_total_images(product_id):
-    product_folder = os.path.join(UPLOADS_FOLDER, str(product_id))
+    product_folder = os.path.join(PRODUCTS_FOLDER, str(product_id))
     if os.path.exists(product_folder):
         images = [filename for filename in os.listdir(product_folder) if os.path.isfile(os.path.join(product_folder, filename))]
         total_images = len(images)
         return jsonify({'total_images': total_images})
     else:
         return jsonify({'total_images': 0})
+
+
+# Rota para cadastrar a imagem do usuário
+@app.route('/userImage/<int:user_id>', methods=['POST'])
+def upload_user_image(user_id):
+    if 'image' not in request.files:
+        return "Nenhuma imagem encontrada na solicitação", 400
+
+    image = request.files['image']
+    user_folder = os.path.join(USERS_FOLDER, str(user_id))
+
+    # Criar a pasta do usuário se não existir
+    if not os.path.exists(user_folder):
+        os.makedirs(user_folder)
+
+    # Caminho da imagem, sempre substituindo a imagem existente
+    image_path = os.path.join(user_folder, "profile.png")
+    image.save(image_path)
+
+    return "Imagem do usuário carregada com sucesso", 201
+
+# Rota para chamar a imagem do usuário
+@app.route('/userImage/<int:user_id>', methods=['GET'])
+def get_user_image(user_id):
+    user_folder = os.path.join(USERS_FOLDER, str(user_id))
+    image_path = os.path.join(user_folder, "profile.png")
+    
+    if os.path.exists(image_path):
+        return send_file(image_path, mimetype='image/png')
+    
+    return "Imagem do usuário não encontrada", 404
+
+# Rota para cadastrar a imagem do quilombo
+@app.route('/quilomboImage/<int:quilombo_id>', methods=['POST'])
+def upload_quilombo_image(quilombo_id):
+    if 'image' not in request.files:
+        return "Nenhuma imagem encontrada na solicitação", 400
+
+    image = request.files['image']
+    quilombo_folder = os.path.join(QUILOMBOS_FOLDER, str(quilombo_id))
+
+    # Criar a pasta do quilombo se não existir
+    if not os.path.exists(quilombo_folder):
+        os.makedirs(quilombo_folder)
+
+    # Caminho da imagem, sempre substituindo a imagem existente
+    image_path = os.path.join(quilombo_folder, "quilombo.png")
+    image.save(image_path)
+
+    return "Imagem do quilombo carregada com sucesso", 201
+
+# Rota para chamar a imagem do quilombo
+@app.route('/quilomboImage/<int:quilombo_id>', methods=['GET'])
+def get_quilombo_image(quilombo_id):
+    quilombo_folder = os.path.join(QUILOMBOS_FOLDER, str(quilombo_id))
+    image_path = os.path.join(quilombo_folder, "quilombo.png")
+    
+    if os.path.exists(image_path):
+        return send_file(image_path, mimetype='image/png')
+    
+    return "Imagem do quilombo não encontrada", 404
 
 
 ### --- PRODUTOS ----###
@@ -249,8 +328,8 @@ def create_user():
     connection = sqlite3.connect('Banco_QuilOn')
     cursor = connection.cursor()
     cursor.execute('''
-        INSERT INTO user (nome, dataNasc, sexo, cpf, rg, celular, telefone, email, senha)
-        VALUES (:nome, :dataNasc, :sexo, :cpf, :rg, :celular, :telefone, :email, :senha)
+        INSERT INTO user (nome, dataNasc, sexo, cpf, rg, celular, telefone, email, senha, representante)
+        VALUES (:nome, :dataNasc, :sexo, :cpf, :rg, :celular, :telefone, :email, :senha, :representante)
     ''', {
         'nome': data['nome'],
         'dataNasc': data['dataNasc'],
@@ -260,14 +339,18 @@ def create_user():
         'celular': data['celular'],
         'telefone': data.get('telefone'),
         'email': data['email'],
-        'senha': data['senha']
+        'senha': data['senha'],
+        'representante': data.get('representante', 0)
     })
     connection.commit()
-    
+
     user_id = cursor.lastrowid
-    connection.close()
+    representante = data.get('representante', 0)
     
-    return jsonify({'idUsuario': user_id}), 201
+    connection.close()
+
+    # Agora o valor de 'representante' também será retornado na resposta
+    return jsonify({'idUsuario': user_id, 'representante': representante}), 201
 
 # Rota para listar todos os usuários
 @app.route('/users', methods=['GET'])
@@ -277,7 +360,25 @@ def get_users():
     cursor.execute('SELECT * FROM user')
     users = cursor.fetchall()
     connection.close()
-    return jsonify({'users': users})
+    
+    # Mapeia os resultados para um dicionário com nomes de coluna
+    users_list = []
+    for user in users:
+        users_list.append({
+            'idUsuario': user[0],
+            'nome': user[1],
+            'dataNasc': user[2],
+            'sexo': user[3],
+            'cpf': user[4],
+            'rg': user[5],
+            'celular': user[6],
+            'telefone': user[7],
+            'email': user[8],
+            'senha': user[9],
+            'representante': user[10]  # Novo campo
+        })
+    
+    return jsonify({'users': users_list})
 
 # Rota para obter os detalhes de um usuário específico
 @app.route('/user/<int:idUsuario>', methods=['GET'])
@@ -299,7 +400,8 @@ def get_user(idUsuario):
             'celular': user[6],
             'telefone': user[7],
             'email': user[8],
-            'senha': user[9]
+            'senha': user[9],
+            'representante': user[10]  # Novo campo
         }
         return jsonify(user_details)
     else:
@@ -313,7 +415,7 @@ def update_user(idUsuario):
     cursor = connection.cursor()
     cursor.execute('''
         UPDATE user
-        SET nome = :nome, dataNasc = :dataNasc, sexo = :sexo, cpf = :cpf, rg = :rg, celular = :celular, telefone = :telefone, email = :email, senha = :senha
+        SET nome = :nome, dataNasc = :dataNasc, sexo = :sexo, cpf = :cpf, rg = :rg, celular = :celular, telefone = :telefone, email = :email, senha = :senha, representante = :representante
         WHERE idUsuario = :idUsuario
     ''', {
         'nome': data['nome'],
@@ -325,6 +427,7 @@ def update_user(idUsuario):
         'telefone': data.get('telefone'),
         'email': data['email'],
         'senha': data['senha'],
+        'representante': data.get('representante', 0),  # Atualiza ou usa 0 como padrão
         'idUsuario': idUsuario
     })
     connection.commit()
@@ -509,6 +612,28 @@ def update_quilombo(idQuilombo):
 
         connection.commit()
         return jsonify({'message': 'Dados do quilombo atualizados com sucesso'}), 200
+
+    except sqlite3.Error as e:
+        connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        connection.close()
+
+# Rota para deletar um quilombo
+@app.route('/quilombo/<int:idQuilombo>', methods=['DELETE'])
+def delete_quilombo(idQuilombo):
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute('DELETE FROM quilombo WHERE idQuilombo = ?', (idQuilombo,))
+        
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Quilombo não encontrado'}), 404
+
+        connection.commit()
+        return jsonify({'message': 'Quilombo deletado com sucesso'}), 200
 
     except sqlite3.Error as e:
         connection.rollback()
@@ -840,6 +965,124 @@ def get_sold_products(idUsuario):
         connection.close()
 
 
+### --- INFORMATIVO ----###
+
+@app.route('/informative', methods=['POST'])
+def upsert_informative():
+    data = request.get_json()
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+
+    try:
+        # Verificar se já existe um informativo para o idQuilombo fornecido
+        cursor.execute('''
+            SELECT idInformative FROM communityInformative WHERE idQuilombo = :idQuilombo
+        ''', {'idQuilombo': data['idQuilombo']})
+        
+        result = cursor.fetchone()
+
+        if result:
+            # Se existir, atualizar o informativo existente
+            cursor.execute('''
+                UPDATE communityInformative
+                SET population = :population, history = :history
+                WHERE idQuilombo = :idQuilombo
+            ''', {
+                'population': data['population'],
+                'history': data['history'],
+                'idQuilombo': data['idQuilombo']
+            })
+            connection.commit()
+            return jsonify({'message': 'Informativo atualizado com sucesso'}), 200
+        else:
+            # Se não existir, criar um novo informativo
+            cursor.execute(''' 
+                INSERT INTO communityInformative (idQuilombo, population, history)
+                VALUES (:idQuilombo, :population, :history)
+            ''', {
+                'idQuilombo': data['idQuilombo'],
+                'population': data['population'],
+                'history': data['history']
+            })
+            connection.commit()
+            informative_id = cursor.lastrowid
+            return jsonify({'idInformative': informative_id, 'message': 'Informativo criado com sucesso'}), 201
+
+    except sqlite3.Error as e:
+        connection.rollback()
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        connection.close()
+
+# Rota para cadastrar imagens do informativo
+@app.route('/informativeImages/<int:quilombo_id>', methods=['POST'])
+def upload_informative_images(quilombo_id):
+    if 'images' not in request.files:
+        return "Nenhuma imagem encontrada na solicitação", 400
+
+    images = request.files.getlist('images')
+    if len(images) > 3:
+        return "Você pode enviar no máximo 3 imagens", 400
+
+    informative_folder = os.path.join(INFORMATIVE_FOLDER, str(quilombo_id))
+    
+    # Cria a pasta do quilombo se não existir
+    if not os.path.exists(informative_folder):
+        os.makedirs(informative_folder)
+
+    # Salvar as imagens
+    for index, image in enumerate(images):
+        if image.filename == '':
+            return "Nenhuma imagem selecionada", 400
+        
+        # Define o caminho para salvar a imagem
+        image_path = os.path.join(informative_folder, f"{index + 1}.png")  # Renomeia como 1.png, 2.png, 3.png
+        image.save(image_path)
+
+    return "Imagens carregadas com sucesso", 201
+
+# Rota para obter os dados do informativo de uma comunidade pelo idQuilombo
+@app.route('/informative/<int:idQuilombo>', methods=['GET'])
+def get_informative(idQuilombo):
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute('''
+            SELECT population, history FROM communityInformative WHERE idQuilombo = :idQuilombo
+        ''', {'idQuilombo': idQuilombo})
+        
+        result = cursor.fetchone()
+
+        if result:
+            return jsonify({
+                'population': result[0],
+                'history': result[1]
+            }), 200
+        else:
+            return jsonify({'error': 'Informativo não encontrado'}), 404
+
+    except sqlite3.Error as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        connection.close()
+
+# Rota para obter imagem específica do informativo
+@app.route('/informativeImages/<int:quilombo_id>/<int:image_index>', methods=['GET'])
+def get_informative_image(quilombo_id, image_index):
+    informative_folder = os.path.join(INFORMATIVE_FOLDER, str(quilombo_id))
+    image_extensions = ['.png', '.jpg', '.jpeg']  # Adicione mais extensões se necessário
+    
+    # Verifica a existência da imagem nas possíveis extensões
+    for ext in image_extensions:
+        image_path = os.path.join(informative_folder, f"{image_index}{ext}")
+        if os.path.exists(image_path):
+            return send_file(image_path, mimetype=f'image/{ext[1:]}')
+    
+    return "Imagem não encontrada", 404
+
 ### --- LOGIN ----###
 
 # Rota para login
@@ -852,13 +1095,13 @@ def login():
     # Verificar se o email e a senha correspondem a um usuário no banco de dados
     connection = sqlite3.connect('Banco_QuilOn')
     cursor = connection.cursor()
-    cursor.execute('SELECT idUsuario, email, senha FROM user WHERE email = ?', (email,))
+    cursor.execute('SELECT idUsuario, email, senha, representante FROM user WHERE email = ?', (email,))
     user = cursor.fetchone()
     connection.close()
 
     if user and user[2] == password:
         # Credenciais válidas, login bem-sucedido
-        return jsonify({'idUsuario': user[0], 'email': user[1]}), 200
+        return jsonify({'idUsuario': user[0], 'email': user[1], 'representante': user[3]}), 200
     else:
         # Credenciais inválidas, login falhou
         return jsonify({'error': 'Credenciais inválidas'}), 401
@@ -869,7 +1112,6 @@ def login():
 # ------  RECOMENDAÇÃO SEM KNN ------ #
 # Função para recomendar produtos com base nas categorias mais pesquisadas pelo usuário
 def recommend_similar_products(user_id):
-    print(f"Recommending similar products for user {user_id}")
     connection = sqlite3.connect('Banco_QuilOn')
     cursor = connection.cursor()
 
@@ -894,8 +1136,6 @@ def recommend_similar_products(user_id):
         recommended_products.extend(products)
 
     connection.close()
-
-    print(f"Recommended products: {recommended_products}")
     return recommended_products
 
 # Rota para recomendar produtos semelhantes ao usuário
