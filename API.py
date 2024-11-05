@@ -167,13 +167,65 @@ def create_product():
     return jsonify({'id': product_id}), 201
 
 # Rota para listar todos os produtos com quantidade maior que 0
+def merge(products, left, middle, right):
+    # Cria cópias temporárias dos subarrays
+    left_half = products[left:middle+1]
+    right_half = products[middle+1:right+1]
+
+    i = j = 0
+    k = left
+
+    # Combina os subarrays de forma decrescente
+    while i < len(left_half) and j < len(right_half):
+        if left_half[i][0] >= right_half[j][0]:  # Comparando o campo ID (posição 0)
+            products[k] = left_half[i]
+            i += 1
+        else:
+            products[k] = right_half[j]
+            j += 1
+        k += 1
+
+    # Copia os elementos restantes da metade esquerda (se houver)
+    while i < len(left_half):
+        products[k] = left_half[i]
+        i += 1
+        k += 1
+
+    # Copia os elementos restantes da metade direita (se houver)
+    while j < len(right_half):
+        products[k] = right_half[j]
+        j += 1
+        k += 1
+
+# Função Merge Sort para ordenar por ID em ordem decrescente
+def merge_sort(products, left, right):
+    if left < right:
+        middle = (left + right) // 2
+
+        merge_sort(products, left, middle)       # Ordena a primeira metade
+        merge_sort(products, middle + 1, right)  # Ordena a segunda metade
+
+        merge(products, left, middle, right)     # Combina as duas metades
+
+# Rota para listar todos os produtos com quantidade maior que 0
 @app.route('/products', methods=['GET'])
 def get_products():
+    # Conecta ao banco de dados
     connection = sqlite3.connect('Banco_QuilOn')
     cursor = connection.cursor()
-    cursor.execute('SELECT * FROM products WHERE stock > 0')  # Filtra produtos com quantidade maior que 0
+
+    # Seleciona produtos com stock maior que 0
+    cursor.execute('SELECT * FROM products WHERE stock > 0')
     products = cursor.fetchall()
+
+    # Fecha a conexão
     connection.close()
+
+    # Se houver produtos, aplica o Merge Sort para ordená-los por ID em ordem decrescente
+    if products:
+        merge_sort(products, 0, len(products) - 1)
+
+    # Retorna os produtos ordenados
     return jsonify({'products': products})
 
 # Rota para listar os IDs de todos os produtos
