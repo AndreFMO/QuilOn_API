@@ -12,13 +12,8 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
 
-# Verifica se o recurso 'punkt' está disponível
-if not nltk.data.find('tokenizers/punkt'):
-    nltk.download('punkt')
-
-# Verifica se o recurso 'stopwords' está disponível
-if not nltk.data.find('corpora/stopwords'):
-    nltk.download('stopwords')
+nltk.download('punkt')
+nltk.download('stopwords')
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
