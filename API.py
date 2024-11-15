@@ -12,36 +12,24 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
 
-# Certifique-se de baixar esses recursos do NLTK:
-nltk.download('punkt')
-nltk.download('stopwords')
+# Verifica se o recurso 'punkt' está disponível
+if not nltk.data.find('tokenizers/punkt'):
+    nltk.download('punkt')
+
+# Verifica se o recurso 'stopwords' está disponível
+if not nltk.data.find('corpora/stopwords'):
+    nltk.download('stopwords')
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+### --- PRODUTOS ----###
 
 ### --- IMAGENS DOS PRODUTOS ----###
 PRODUCTS_FOLDER = 'uploads/products'
 app.config['PRODUCTS_FOLDER'] = PRODUCTS_FOLDER
 if not os.path.exists(PRODUCTS_FOLDER):
     os.makedirs(PRODUCTS_FOLDER)
-
-### --- IMAGENS DOS USUARIOS ----###
-USERS_FOLDER = 'uploads/users'
-app.config['USERS_FOLDER'] = USERS_FOLDER
-if not os.path.exists(USERS_FOLDER):
-    os.makedirs(USERS_FOLDER)
-
-### --- IMAGENS DOS QUILOMBOS ----###
-QUILOMBOS_FOLDER = 'uploads/quilombos'
-app.config['QUILOMBOS_FOLDER'] = QUILOMBOS_FOLDER
-if not os.path.exists(QUILOMBOS_FOLDER):
-    os.makedirs(QUILOMBOS_FOLDER)
-
-### --- IMAGENS DOS INFORMATIVOS ----###
-INFORMATIVE_FOLDER = 'uploads/informatives'
-app.config['INFORMATIVE_FOLDER'] = INFORMATIVE_FOLDER
-if not os.path.exists(INFORMATIVE_FOLDER):
-    os.makedirs(INFORMATIVE_FOLDER)
 
 # Rota para cadastrar imagens do produto
 @app.route('/productImage/<int:product_id>', methods=['POST'])
@@ -65,7 +53,7 @@ def upload_image(product_id):
 
     return "Imagem carregada com sucesso", 201
 
-# Rota para chamar imagem
+# Rota para chamar imagem do produto
 @app.route('/productImage/<int:product_id>/<int:image_index>', methods=['GET'])
 def get_image(product_id, image_index):
     product_folder = os.path.join(PRODUCTS_FOLDER, str(product_id))
@@ -88,70 +76,6 @@ def get_total_images(product_id):
         return jsonify({'total_images': total_images})
     else:
         return jsonify({'total_images': 0})
-
-
-# Rota para cadastrar a imagem do usuário
-@app.route('/userImage/<int:user_id>', methods=['POST'])
-def upload_user_image(user_id):
-    if 'image' not in request.files:
-        return "Nenhuma imagem encontrada na solicitação", 400
-
-    image = request.files['image']
-    user_folder = os.path.join(USERS_FOLDER, str(user_id))
-
-    # Criar a pasta do usuário se não existir
-    if not os.path.exists(user_folder):
-        os.makedirs(user_folder)
-
-    # Caminho da imagem, sempre substituindo a imagem existente
-    image_path = os.path.join(user_folder, "profile.png")
-    image.save(image_path)
-
-    return "Imagem do usuário carregada com sucesso", 201
-
-# Rota para chamar a imagem do usuário
-@app.route('/userImage/<int:user_id>', methods=['GET'])
-def get_user_image(user_id):
-    user_folder = os.path.join(USERS_FOLDER, str(user_id))
-    image_path = os.path.join(user_folder, "profile.png")
-    
-    if os.path.exists(image_path):
-        return send_file(image_path, mimetype='image/png')
-    
-    return "Imagem do usuário não encontrada", 404
-
-# Rota para cadastrar a imagem do quilombo
-@app.route('/quilomboImage/<int:quilombo_id>', methods=['POST'])
-def upload_quilombo_image(quilombo_id):
-    if 'image' not in request.files:
-        return "Nenhuma imagem encontrada na solicitação", 400
-
-    image = request.files['image']
-    quilombo_folder = os.path.join(QUILOMBOS_FOLDER, str(quilombo_id))
-
-    # Criar a pasta do quilombo se não existir
-    if not os.path.exists(quilombo_folder):
-        os.makedirs(quilombo_folder)
-
-    # Caminho da imagem, sempre substituindo a imagem existente
-    image_path = os.path.join(quilombo_folder, "quilombo.png")
-    image.save(image_path)
-
-    return "Imagem do quilombo carregada com sucesso", 201
-
-# Rota para chamar a imagem do quilombo
-@app.route('/quilomboImage/<int:quilombo_id>', methods=['GET'])
-def get_quilombo_image(quilombo_id):
-    quilombo_folder = os.path.join(QUILOMBOS_FOLDER, str(quilombo_id))
-    image_path = os.path.join(quilombo_folder, "quilombo.png")
-    
-    if os.path.exists(image_path):
-        return send_file(image_path, mimetype='image/png')
-    
-    return "Imagem do quilombo não encontrada", 404
-
-
-### --- PRODUTOS ----###
 
 # Rota para cadastrar um produto
 @app.route('/product', methods=['POST'])
@@ -383,6 +307,42 @@ def delete_product_by_user(idUsuario, product_id):
 
 ### --- USUARIOS ----###
 
+### --- IMAGENS DOS USUARIOS ----###
+USERS_FOLDER = 'uploads/users'
+app.config['USERS_FOLDER'] = USERS_FOLDER
+if not os.path.exists(USERS_FOLDER):
+    os.makedirs(USERS_FOLDER)
+
+# Rota para cadastrar a imagem do usuário
+@app.route('/userImage/<int:user_id>', methods=['POST'])
+def upload_user_image(user_id):
+    if 'image' not in request.files:
+        return "Nenhuma imagem encontrada na solicitação", 400
+
+    image = request.files['image']
+    user_folder = os.path.join(USERS_FOLDER, str(user_id))
+
+    # Criar a pasta do usuário se não existir
+    if not os.path.exists(user_folder):
+        os.makedirs(user_folder)
+
+    # Caminho da imagem, sempre substituindo a imagem existente
+    image_path = os.path.join(user_folder, "profile.png")
+    image.save(image_path)
+
+    return "Imagem do usuário carregada com sucesso", 201
+
+# Rota para chamar a imagem do usuário
+@app.route('/userImage/<int:user_id>', methods=['GET'])
+def get_user_image(user_id):
+    user_folder = os.path.join(USERS_FOLDER, str(user_id))
+    image_path = os.path.join(user_folder, "profile.png")
+    
+    if os.path.exists(image_path):
+        return send_file(image_path, mimetype='image/png')
+    
+    return "Imagem do usuário não encontrada", 404
+
 # Rota para criar um novo usuário
 @app.route('/user', methods=['POST'])
 def create_user():
@@ -601,6 +561,42 @@ def delete_address(idEndereco):
 
 
 ### --- QUILOMBOS ----###
+
+### --- IMAGENS DOS QUILOMBOS ----###
+QUILOMBOS_FOLDER = 'uploads/quilombos'
+app.config['QUILOMBOS_FOLDER'] = QUILOMBOS_FOLDER
+if not os.path.exists(QUILOMBOS_FOLDER):
+    os.makedirs(QUILOMBOS_FOLDER)
+
+# Rota para cadastrar a imagem do quilombo
+@app.route('/quilomboImage/<int:quilombo_id>', methods=['POST'])
+def upload_quilombo_image(quilombo_id):
+    if 'image' not in request.files:
+        return "Nenhuma imagem encontrada na solicitação", 400
+
+    image = request.files['image']
+    quilombo_folder = os.path.join(QUILOMBOS_FOLDER, str(quilombo_id))
+
+    # Criar a pasta do quilombo se não existir
+    if not os.path.exists(quilombo_folder):
+        os.makedirs(quilombo_folder)
+
+    # Caminho da imagem, sempre substituindo a imagem existente
+    image_path = os.path.join(quilombo_folder, "quilombo.png")
+    image.save(image_path)
+
+    return "Imagem do quilombo carregada com sucesso", 201
+
+# Rota para chamar a imagem do quilombo
+@app.route('/quilomboImage/<int:quilombo_id>', methods=['GET'])
+def get_quilombo_image(quilombo_id):
+    quilombo_folder = os.path.join(QUILOMBOS_FOLDER, str(quilombo_id))
+    image_path = os.path.join(quilombo_folder, "quilombo.png")
+    
+    if os.path.exists(image_path):
+        return send_file(image_path, mimetype='image/png')
+    
+    return "Imagem do quilombo não encontrada", 404
 
 # Rota para cadastrar um novo quilombo
 @app.route('/quilombo', methods=['POST'])
@@ -1054,6 +1050,12 @@ def get_sold_products(idUsuario):
 
 ### --- INFORMATIVO ----###
 
+### --- IMAGENS DOS INFORMATIVOS ----###
+INFORMATIVE_FOLDER = 'uploads/informatives'
+app.config['INFORMATIVE_FOLDER'] = INFORMATIVE_FOLDER
+if not os.path.exists(INFORMATIVE_FOLDER):
+    os.makedirs(INFORMATIVE_FOLDER)
+
 @app.route('/informative', methods=['POST'])
 def upsert_informative():
     data = request.get_json()
@@ -1169,6 +1171,7 @@ def get_informative_image(quilombo_id, image_index):
             return send_file(image_path, mimetype=f'image/{ext[1:]}')
     
     return "Imagem não encontrada", 404
+
 
 ### --- LOGIN ----###
 
