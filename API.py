@@ -4,7 +4,17 @@ from datetime import datetime
 import sqlite3
 import os
 import numpy as np
+import pandas as pd
+from nltk.tokenize import word_tokenize
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem import SnowballStemmer
+
+# Certifique-se de baixar esses recursos do NLTK:
+nltk.download('punkt')
+nltk.download('stopwords')
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
@@ -697,10 +707,34 @@ def delete_quilombo(idQuilombo):
 
 ### --- BUSCAS ----###
 
+def preprocess_text(text, is_category=False):
+    # 1. Tokenização
+    tokenized = word_tokenize(text.lower())
+
+    # 2. Remoção de stopwords
+    stopwords_pt = set(stopwords.words('portuguese'))
+    without_stopwords = [word for word in tokenized if word not in stopwords_pt]
+
+    # 3. Radicalização (Stemming), se não for uma categoria
+    if not is_category:
+        snowball = SnowballStemmer('portuguese')
+        # Evita o stemming em palavras com acentuação como "acessórios"
+        without_accent = [word if word in ['acessórios', 'acessório'] else snowball.stem(word) for word in without_stopwords]
+        # Junta as palavras radicalizadas de volta em uma string
+        return ' '.join(without_accent)
+    else:
+        # Para categorias, apenas retorna o texto sem o stemming
+        return ' '.join(without_stopwords)
+
 # Rota para cadastrar uma nova busca
 @app.route('/search', methods=['POST'])
 def create_search():
     data = request.get_json()
+
+    # Pré-processar o texto da busca
+    conteudo_processado = preprocess_text(data['conteudoBuscado'])
+
+    # Conectar ao banco de dados e inserir a busca processada
     connection = sqlite3.connect('Banco_QuilOn')
     cursor = connection.cursor()
     cursor.execute('''
@@ -708,11 +742,12 @@ def create_search():
         VALUES (:idUsuario, :conteudoBuscado)
     ''', {
         'idUsuario': data['idUsuario'],
-        'conteudoBuscado': data['conteudoBuscado']
+        'conteudoBuscado': conteudo_processado  # Insere o texto processado
     })
     connection.commit()
     connection.close()
-    return 'Busca cadastrada com sucesso', 201 
+
+    return 'Busca cadastrada com sucesso', 201
 
 # Rota para cadastrar várias buscas de uma vez
 @app.route('/searches', methods=['POST'])
@@ -1159,43 +1194,86 @@ def login():
         return jsonify({'error': 'Credenciais inválidas'}), 401
    
 
-### --- RECOMENDAÇÃO / IA ----###
+### --- ALGORITMO DE RECOMENDAÇÃO ----###
 
-# ------  RECOMENDAÇÃO SEM KNN ------ #
-# Função para recomendar produtos com base nas categorias mais pesquisadas pelo usuário
+# Função para treinar o modelo de recomendação (baseado em k-NN)
+def train_recommendation_model():
+    connection = sqlite3.connect('Banco_QuilOn')
+    cursor = connection.cursor()
+
+    # Recupera todos os produtos disponíveis, incluindo idUsuario
+    cursor.execute('''
+        SELECT id, title, category, description, production_time, price, stock, idUsuario 
+        FROM products 
+        WHERE stock > 0
+    ''')
+    products = cursor.fetchall()
+
+    # Criar um DataFrame para os produtos
+    df_products = pd.DataFrame(products, columns=['id', 'title', 'category', 'description', 'production_time', 'price', 'stock', 'idUsuario'])
+    
+    # Pré-processar as categorias
+    df_products['processed_category'] = df_products['category'].apply(preprocess_text)
+
+    # Vetorização com TF-IDF
+    vectorizer = TfidfVectorizer()
+    X_products = vectorizer.fit_transform(df_products['processed_category'])  # Vetoriza categorias
+
+    # Treinar k-NN (modelo baseado em similaridade)
+    knn = NearestNeighbors(metric='cosine', algorithm='brute')
+    knn.fit(X_products)
+
+    connection.close()
+
+    return knn, vectorizer, df_products
+
+# Função para recomendar produtos com base nas buscas do usuário
 def recommend_similar_products(user_id):
     connection = sqlite3.connect('Banco_QuilOn')
     cursor = connection.cursor()
 
-    # Consulta para recuperar as categorias mais buscadas pelo usuário
+    # Consulta para recuperar as buscas do usuário
     cursor.execute(''' 
-        SELECT conteudoBuscado, COUNT(*) as freq 
+        SELECT conteudoBuscado 
         FROM searched 
         WHERE idUsuario = ? 
-        GROUP BY conteudoBuscado 
-        ORDER BY freq DESC 
     ''', (user_id,))
-    categories = cursor.fetchall()
+    searches = cursor.fetchall()
 
-    # Recuperar produtos relacionados às categorias mais buscadas, excluindo os com quantidade 0
-    recommended_products = []
-    for category, _ in categories:
-        cursor.execute(''' 
-            SELECT * FROM products 
-            WHERE category = ? AND stock > 0 
-        ''', (category,))
-        products = cursor.fetchall()
-        recommended_products.extend(products)
+    if not searches:
+        return []
+
+    # Pré-processar as buscas do usuário
+    processed_searches = [preprocess_text(search[0]) for search in searches]
+
+    # Combinar todas as buscas do usuário em um único texto para vetorização
+    combined_search = ' '.join(processed_searches)
+
+    # Vetorizar a busca do usuário
+    search_vector = vectorizer.transform([combined_search])
+
+    # Encontrar os produtos mais próximos usando k-NN
+    distances, indices = knn.kneighbors(search_vector, n_neighbors=8) 
+
+    # Recuperar os produtos recomendados baseados nos índices
+    recommended_products = df_products.iloc[indices[0]]
+
+    # Formatar a saída como uma lista de listas, no formato solicitado
+    formatted_products = recommended_products[['id', 'title', 'category', 'description', 'production_time', 'price', 'stock', 'idUsuario']].values.tolist()
 
     connection.close()
-    return recommended_products
+    
+    return formatted_products
 
-# Rota para recomendar produtos semelhantes ao usuário
+# Rota para recomendar produtos ao usuário
 @app.route('/recommendations/<int:user_id>', methods=['GET'])
 def get_recommendations(user_id):
     recommended_products = recommend_similar_products(user_id)
+    
+    # O retorno já está formatado como uma lista de listas contendo os produtos recomendados
     return jsonify({'recommended_products': recommended_products})
 
 
 if __name__ == '__main__':
+    knn, vectorizer, df_products = train_recommendation_model()
     app.run(debug=True, host="0.0.0.0", port=5000)
