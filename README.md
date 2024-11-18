@@ -29,9 +29,7 @@ http://endereco_ip_maquina:5000/
 ## 🟡 Instruções para a execução do projeto
 
 ```bash
-- pip install flask
-- pip install flask-cors
-- pip install db-sqlite3
+pip install flask flask-cors nltk scikit-learn numpy pandas
 ```
 
 
