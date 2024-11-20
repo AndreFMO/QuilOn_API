@@ -36,7 +36,7 @@ pip install flask flask-cors nltk scikit-learn numpy pandas
 ### Para executar inicie o comando:
 
 ```bash
-- py API.py
+- python API.py
 ```
 
 ### Para vizualizar o Banco de dados recomendo que baixe a exteção:
